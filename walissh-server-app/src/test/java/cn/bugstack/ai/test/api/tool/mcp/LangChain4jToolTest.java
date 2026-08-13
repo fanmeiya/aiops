@@ -29,7 +29,7 @@ public class LangChain4jToolTest {
     public static void main(String[] args) {
         OpenAiChatModel model = OpenAiChatModel.builder()
                 .baseUrl("https://apis.itedus.cn/v1")
-                .apiKey("sk-wtBOjyNviG9NtbYn7f2fF8A2203048Aa86Be6f0f0b824dB9")
+                .apiKey("YOUR_BAIDU_API_KEY")
                 .modelName("gpt-4o-mini")
                 .build();
 
@@ -50,8 +50,8 @@ public class LangChain4jToolTest {
     public static McpSyncClient sseMcpClient() {
 
         // 自己申请 api_key
-        HttpClientSseClientTransport sseClientTransport = HttpClientSseClientTransport.builder("http://appbuilder.baidu.com/v2/ai_search/mcp/")
-                .sseEndpoint("sse?api_key=bce-v3/ALTAK-JFZXXLpfxhAutDQvJ32Ei/4492c1879b8c2f0df4612ef5b4a52df1c1fba9f7")
+            HttpClientSseClientTransport sseClientTransport = HttpClientSseClientTransport.builder("http://appbuilder.baidu.com/v2/ai_search/mcp/")
+                    .sseEndpoint("sse?api_key=YOUR_BAIDU_API_KEY")
                 .build();
 
         McpSyncClient mcpSyncClient = McpClient.sync(sseClientTransport).requestTimeout(Duration.ofMinutes(360)).build();

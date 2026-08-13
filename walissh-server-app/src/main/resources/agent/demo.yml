@@ -11,7 +11,7 @@ ai:
           module:
             ai-api:
               base-url: https://apis.itedus.cn
-              api-key: sk-tilEamI7Db17hSx71748E9DbB47449D186Ac466542Eb63A6
+              api-key: YOUR_BAIDU_API_KEY
               completions-path: v1/chat/completions
               embeddings-path: v1/embeddings
             chat-model:
@@ -21,7 +21,7 @@ ai:
                 - sse:
                     name: baidu-search
                     base-uri: http://appbuilder.baidu.com/v2/ai_search/mcp/
-                    sse-endpoint: sse?api_key=bce-v3/ALTAK-WjK8NIh3txZo7rXXEjhri/e2f09d53de961bcaf2609b76c7c7a7e6d0f05da3
+                    sse-endpoint: 
                     request-timeout: 500000
                 # local本地实现的，mcp 服务，在 ai-agent-scaffold-lite-domain 模块下，cn.bugstack.ai.domain.agent.service.armory.matter.mcp.server 下实现服务
                 - local:

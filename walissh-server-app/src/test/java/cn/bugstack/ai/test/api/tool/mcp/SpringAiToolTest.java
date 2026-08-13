@@ -29,7 +29,7 @@ public class SpringAiToolTest {
     public static void main(String[] args) {
         OpenAiApi openAiApi = OpenAiApi.builder()
                 .baseUrl("https://apis.itedus.cn")
-                .apiKey("sk-efen7WX8Q8vGvBps3f7c9a34578d41BbBc508dC5Df33A9Fb")
+                .apiKey("YOUR_BAIDU_API_KEY")
                 .completionsPath("v1/chat/completions")
                 .embeddingsPath("v1/embeddings")
                 .build();
@@ -57,7 +57,7 @@ public class SpringAiToolTest {
 
         // 自己申请 api_key
         HttpClientSseClientTransport sseClientTransport = HttpClientSseClientTransport.builder("http://appbuilder.baidu.com")
-                .sseEndpoint("/v2/ai_search/mcp/sse?api_key=bce-v3/ALTAK-JFZXXLpfxhAutDQvJ32Ei/4492c1879b8c2f0df4612ef5b4a52df1c1fba9f7")
+                .sseEndpoint("")
                 .build();
 
         McpSyncClient mcpSyncClient = McpClient.sync(sseClientTransport).requestTimeout(Duration.ofMinutes(360)).build();
@@ -69,9 +69,9 @@ public class SpringAiToolTest {
 
     @Test
     public void test_url() throws MalformedURLException {
-        String fullUrl = "http://appbuilder.baidu.com/v2/ai_search/mcp/sse?api_key=bce-v3/ALTAK-JFZXXLpfxhAutDQvJ32Ei/4492c1879b8c2f0df4612ef5b4a52df1c1fba9f7";
+        String fullUrl = "";
 
-        fullUrl = "http://127.0.0.1:9999/sse?apiKey=xxxx";
+        fullUrl = "";
 
         URL url = new URL(fullUrl);
 

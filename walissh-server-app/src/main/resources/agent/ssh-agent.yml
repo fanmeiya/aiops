@@ -11,7 +11,7 @@ ai:
           module:
             ai-api:
               base-url: https://apis.itedus.cn
-              api-key: sk-ICVYt7VQ4moKhlQV1aEe9bC035A249B2B62421931fD0373e
+              api-key: YOUR_BAIDU_API_KEY
               completions-path: v1/chat/completions
               embeddings-path: v1/embeddings
             chat-model:
@@ -24,7 +24,7 @@ ai:
                 # - sse:
                 #     name: baidu-search
                 #     base-uri: http://appbuilder.baidu.com/v2/ai_search/mcp/
-                #     sse-endpoint: sse?api_key=bce-v3/ALTAK-WjK8NIh3txZo7rXXEjhri/e2f09d53de961bcaf2609b76c7c7a7e6d0f05da3
+                #     sse-endpoint: 
                 #     request-timeout: 500000
               # Skills 技能书（可选）
               # tool-skills-list:
