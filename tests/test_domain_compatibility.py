@@ -1,4 +1,5 @@
 from app.agent.intent import IntentService
+from app.agent.permissions import check_permission
 
 
 def test_rule_intent_context_boost_and_entities():
@@ -19,3 +20,9 @@ def test_sliding_priority_and_hybrid_reducers():
     assert len(SlidingWindowReducer().reduce(messages,1000))==20
     assert PriorityReducer().reduce(messages,10)==messages[-2:]
     assert HybridReducer().reduce(messages,10)==messages[-2:]
+
+
+def test_destructive_command_requires_explicit_confirmation():
+    import pytest
+    with pytest.raises(PermissionError): check_permission('rm -rf /', '删除一些缓存')
+    check_permission('rm -rf /', '我确认执行删除根目录')

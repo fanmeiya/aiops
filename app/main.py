@@ -9,16 +9,17 @@ from app.agent.runtime import runtime
 from app.persistence import ChatMessage, ChatSession, get_db, init_database
 from app.schemas import ChatRequest, CreateSession, envelope
 from app.memory import ChatHistoryRepository
-from app.agent.context import HybridReducer, build_context, message_prefix
+from app.agent.context import HybridReducer, build_context, conversation_history, message_prefix
 from app.agent.intent import intent_service
 from app.agent.state import session_registry
+from app.config import settings
 
 @asynccontextmanager
 async def lifespan(app):
     await init_database(); yield
 
 app=FastAPI(title='WaLiSSH Server', lifespan=lifespan)
-app.add_middleware(CORSMiddleware,allow_origins=['*'],allow_methods=['*'],allow_headers=['*'],allow_credentials=False)
+app.add_middleware(CORSMiddleware,allow_origins=settings.cors_origin_list,allow_methods=['*'],allow_headers=['*'],allow_credentials=False)
 app.include_router(router)
 
 @app.get('/api/v1/query_ai_agent_config_list')
@@ -35,9 +36,13 @@ async def prepare(req,sid,terminal_id,db):
     repo=ChatHistoryRepository(db); history=await repo.messages(sid)
     intent=await intent_service.classify(sid,req.message or '')
     milestones=await repo.milestones(sid)
-    context=await build_context(sid,terminal_id,HybridReducer().reduce(history,8000),milestones)
+    trimmed=HybridReducer().reduce(history,8000)
+    context=await build_context(sid,terminal_id,trimmed,milestones)
     prefix=message_prefix(context)
-    enriched=(prefix+'\n---\n' if prefix else '')+(req.message or '')
+    mapping=session_registry.get(sid)
+    restored_history="" if mapping and mapping.claude_session_id else conversation_history(trimmed)
+    parts=[part for part in (restored_history,prefix,req.message or '') if part]
+    enriched='\n---\n'.join(parts)
     return repo,enriched,intent
 
 @app.post('/api/v1/create_session')
@@ -52,6 +57,7 @@ async def create_get(agentId:str,userId:str,db:AsyncSession=Depends(get_db)):
 async def chat(req:ChatRequest,db:AsyncSession=Depends(get_db)):
     sid=req.sessionId or await make_session(req.agentId,req.userId,db)
     if not sid:return envelope(code='E0001',info='智能体ID不存在')
+    req.sessionId=sid
     terminal=req.terminalSessionId or bindings.get(sid); repo,enriched,intent=await prepare(req,sid,terminal,db)
     await repo.add_message(sid,'user',req.message); await repo.detect_milestone(sid,'user',req.message); text=''
     async for event in runtime.stream(req,terminal,enriched):
@@ -71,11 +77,14 @@ async def chat_stream(req:ChatRequest,db:AsyncSession=Depends(get_db)):
     await repo.add_message(sid,'user',req.message); await repo.detect_milestone(sid,'user',req.message); await db.commit()
     async def generate():
         final=''
-        async for event in runtime.stream(req,terminal,enriched):
-            if event['event']=='tool_result':
-                await repo.add_message(sid,'tool',event['content'],'executeCommand',event['toolCallId']); await repo.detect_milestone(sid,'tool',event['content'])
-            if event['event']=='done': final=event.get('fullText') or ''
-            yield json.dumps(event,ensure_ascii=False,separators=(',',':'))+'\n'
-        await repo.add_message(sid,'assistant',final); await db.commit()
+        try:
+            async for event in runtime.stream(req,terminal,enriched):
+                if event['event']=='tool_result':
+                    await repo.add_message(sid,'tool',event['content'],'executeCommand',event['toolCallId']); await repo.detect_milestone(sid,'tool',event['content'])
+                if event['event']=='done': final=event.get('fullText') or ''
+                yield json.dumps(event,ensure_ascii=False,separators=(',',':'))+'\n'
+        finally:
+            if final: await repo.add_message(sid,'assistant',final)
+            await db.commit()
     # Java ResponseBodyEmitter writes JSON plus newline, not SSE data frames.
     return StreamingResponse(generate(),media_type='application/json')

@@ -1,6 +1,4 @@
-from collections import defaultdict, deque
-from dataclasses import dataclass, field
-from app.ssh import ssh_manager
+from collections import defaultdict
 
 
 def tokens(message: dict) -> int: return len(str(message.get("content", ""))) // 2
@@ -60,10 +58,23 @@ async def build_context(session_id, terminal_id, history, milestones):
     context={"taskDescription":next((m.get("content") for m in history if m.get("role")=="user"),None),
              "milestones":milestones,"toolResultSummary":tool_results.provide(session_id)}
     if terminal_id:
+        from app.ssh import ssh_manager
         for key,command in (("osInfo","uname -srm"),("currentUser","whoami"),("currentDirectory","pwd"),("uptime","uptime -p 2>/dev/null || uptime")):
             try: context[key]=(await ssh_manager.execute(terminal_id,command)).strip()
             except Exception: context[key]=""
     return context
+
+
+def conversation_history(messages):
+    """Render trimmed durable history when an SDK session cannot be resumed."""
+    if not messages:
+        return ""
+    lines = ["[历史对话]"]
+    for message in messages:
+        role = message.get("role", "unknown")
+        content = str(message.get("content") or "")
+        lines.append(f"{role}: {content}")
+    return "\n".join(lines)
 
 
 def message_prefix(context,recent_commands=None):

@@ -13,10 +13,22 @@ class Terminal:
     output: list[str] = field(default_factory=list); agent_output: list[str] = field(default_factory=list)
     capture: bool = False; reader: asyncio.Task | None = None; command_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
+    def append_output(self, text: str) -> None:
+        self.output.append(text)
+        # Match the Java drain buffer semantics while bounding a stalled client.
+        if sum(map(len, self.output)) > 2 * 1024 * 1024:
+            self.output[:] = ["".join(self.output)[-1024 * 1024:]]
+        if self.capture:
+            self.agent_output.append(text)
+            if sum(map(len, self.agent_output)) > 2 * 1024 * 1024:
+                self.agent_output[:] = ["".join(self.agent_output)[-1024 * 1024:]]
+
 
 class SSHManager:
     def __init__(self):
-        self.connections: dict[str, asyncssh.SSHClientConnection] = {}; self.terminals: dict[str, Terminal] = {}
+        self.connections: dict[str, asyncssh.SSHClientConnection] = {}
+        self.sftp_clients: dict[str, Any] = {}
+        self.terminals: dict[str, Terminal] = {}
 
     async def connect(self, record, config) -> None:
         options = dict(host=record.host, port=record.port, username=record.username,
@@ -30,6 +42,8 @@ class SSHManager:
     async def disconnect(self, connection_id: str):
         for sid in [k for k, v in self.terminals.items() if v.connection_id == connection_id]: await self.close(sid)
         conn = self.connections.pop(connection_id, None)
+        client = self.sftp_clients.pop(connection_id, None)
+        if client: client.exit()
         if conn: conn.close(); await conn.wait_closed()
 
     async def open(self, connection_id: str, cols=120, rows=24, startup_command=None) -> Terminal:
@@ -45,8 +59,7 @@ class SSHManager:
     async def _reader(self, term):
         try:
             async for text in term.process.stdout:
-                term.output.append(text)
-                if term.capture: term.agent_output.append(text)
+                term.append_output(text)
         except (asyncssh.Error, OSError): pass
 
     def require(self, sid):
@@ -69,13 +82,22 @@ class SSHManager:
         async with term.command_lock:
             marker = f"__WALISSH_DONE_{uuid.uuid4().hex}__"
             term.agent_output.clear(); term.capture = True
-            term.process.stdin.write(f"{command}\nprintf '{marker}:%s\\n' $?\n")
+            term.process.stdin.write(f"{command}\nprintf '\\n{marker}:%s\\n' $?\n")
             end = asyncio.get_running_loop().time() + timeout
             while asyncio.get_running_loop().time() < end:
                 text = "".join(term.agent_output)
-                if marker in text:
+                match = __import__('re').search(r"(?:\r?\n)" + marker + r":(-?\d+)(?:\r?\n)", text)
+                if match:
                     term.capture = False
-                    return text.split(marker, 1)[0]
+                    before = text[:match.start()]
+                    # The interactive terminal echoes submitted input. Remove only
+                    # the exact command/marker prelude and preserve remote output.
+                    lines = before.splitlines(keepends=True)
+                    echoed = command.splitlines()
+                    while lines and echoed and lines[0].rstrip("\r\n") == echoed[0]:
+                        lines.pop(0); echoed.pop(0)
+                    lines = [line for line in lines if marker not in line]
+                    return "".join(lines)
                 await asyncio.sleep(.1)
             term.capture = False; raise TimeoutError("命令执行超时")
 
@@ -83,6 +105,14 @@ class SSHManager:
         conn = self.connections.get(cid)
         if not conn or conn.is_closed(): raise ValueError("SSH连接未建立，请先连接")
         return conn
+
+    async def sftp(self, cid):
+        self.sftp_connection(cid)
+        client = self.sftp_clients.get(cid)
+        if client is None:
+            client = await self.connections[cid].start_sftp_client()
+            self.sftp_clients[cid] = client
+        return client
 
 
 ssh_manager = SSHManager()

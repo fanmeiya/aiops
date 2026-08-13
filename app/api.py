@@ -1,4 +1,4 @@
-import asyncio, json, os, posixpath, re, uuid
+import asyncio, base64, json, posixpath, shlex, uuid
 from datetime import datetime
 from urllib.parse import quote
 from fastapi import APIRouter, Body, Depends, File, Query, UploadFile
@@ -136,7 +136,7 @@ async def terminal_close(sessionId: str,db:AsyncSession=Depends(get_db)):
     except Exception as e: return envelope(code="0001",info="关闭终端会话失败: "+str(e))
 
 
-async def sftp(cid): return await ssh_manager.sftp_connection(cid).start_sftp_client()
+async def sftp(cid): return await ssh_manager.sftp(cid)
 def norm(path):
     if not path: raise ValueError("路径不能为空")
     return posixpath.normpath(path if path.startswith("/") else "/"+path)
@@ -181,27 +181,56 @@ async def file_mutate(action,cid,path,other=None):
             await client.rmdir(p)
         else: await client.remove(p)
 
+
+async def sudo_exec(connection_id: str, command: str, stdin: bytes | None = None):
+    """Execute an explicitly requested privileged file operation remotely."""
+    conn = ssh_manager.sftp_connection(connection_id)
+    result = await conn.run("sudo -n -- sh -c " + shlex.quote(command), input=stdin, check=False)
+    if result.exit_status != 0:
+        detail = (result.stderr or result.stdout or "sudo 执行失败").strip()
+        raise ValueError(detail)
+
+
+async def mutate_with_policy(action, cid, path, sudo=False, other=None):
+    if not sudo:
+        return await file_mutate(action, cid, path, other)
+    escaped = shlex.quote(norm(path))
+    commands = {
+        "touch": f"touch -- {escaped}",
+        "mkdir": f"mkdir -p -- {escaped}",
+        "delete": f"rm -rf -- {escaped}",
+        "rename": f"mv -- {escaped} {shlex.quote(norm(other))}" if other else "false",
+    }
+    await sudo_exec(cid, commands[action])
+
 @router.post("/ssh/file/create-file")
 async def create_file(connectionId:str,path:str,sudo:bool=False):
-    try: await file_mutate("touch",connectionId,path); return envelope(info="创建文件成功")
+    try: await mutate_with_policy("touch",connectionId,path,sudo); return envelope(info="创建文件成功")
     except Exception as e:return fail(e,"创建文件失败: ")
 @router.post("/ssh/file/create-directory")
 async def create_directory(connectionId:str,path:str,sudo:bool=False):
-    try: await file_mutate("mkdir",connectionId,path); return envelope(info="创建目录成功")
+    try: await mutate_with_policy("mkdir",connectionId,path,sudo); return envelope(info="创建目录成功")
     except Exception as e:return fail(e,"创建目录失败: ")
 @router.post("/ssh/file/rename")
 async def rename_file(connectionId:str,oldPath:str,newPath:str,sudo:bool=False):
-    try: await file_mutate("rename",connectionId,oldPath,newPath); return envelope(info="重命名成功")
+    try: await mutate_with_policy("rename",connectionId,oldPath,sudo,newPath); return envelope(info="重命名成功")
     except Exception as e:return fail(e,"重命名失败: ")
 @router.post("/ssh/file/delete")
 async def delete_file(connectionId:str,path:str,sudo:bool=False):
-    try: await file_mutate("delete",connectionId,path); return envelope(info="删除成功")
+    try:
+        if norm(path) == "/": raise ValueError("禁止删除根目录")
+        await mutate_with_policy("delete",connectionId,path,sudo); return envelope(info="删除成功")
     except Exception as e:return fail(e,"删除失败: ")
 @router.post("/ssh/file/save-content")
 async def save_file(connectionId:str,path:str,sudo:bool=False,body:dict=Body(...)):
     try:
+        content=body.get("content","").encode()
+        if sudo:
+            encoded=base64.b64encode(content).decode()
+            await sudo_exec(connectionId,f"printf %s {shlex.quote(encoded)} | base64 -d > {shlex.quote(norm(path))}")
+            return envelope(info="保存文件成功")
         client=await sftp(connectionId)
-        async with client.open(norm(path),"wb") as f: await f.write(body.get("content","").encode())
+        async with client.open(norm(path),"wb") as f: await f.write(content)
         return envelope(info="保存文件成功")
     except Exception as e:return fail(e,"保存文件失败: ")
 @router.post("/ssh/file/upload")
@@ -227,6 +256,8 @@ async def download(connectionId:str,path:str):
 async def bind(req:Binding):
     if not req.chatSessionId:return envelope(code="0002",info="chatSessionId 不能为空")
     if not req.terminalSessionId:return envelope(code="0002",info="terminalSessionId 不能为空")
+    if req.terminalSessionId not in ssh_manager.terminals:
+        return envelope(code="0002",info="终端会话不存在或已关闭")
     bindings[req.chatSessionId]=req.terminalSessionId
     term=ssh_manager.terminals.get(req.terminalSessionId)
     session_registry.bind_terminal(req.chatSessionId,req.terminalSessionId,term.connection_id if term else None)
