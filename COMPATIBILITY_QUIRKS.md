@@ -1,9 +1,9 @@
 # Compatibility Quirks
 
-1. `chat_stream` is not SSE framing: Java emits a serialized JSON object followed by `\n`. The Python route deliberately preserves that wire format.
-2. Binding state is process-local in Java and is likewise non-durable. Multi-worker deployment therefore needs sticky routing or a future shared-state migration.
-3. Terminal `read` drains the browser buffer while agent capture duplicates shell output into a second buffer. It is not replaceable with one-shot SSH execution.
-4. Java file `content` delegates to the same 256 KiB default used by chunk reading despite an obsolete 512 KiB comment.
-5. Java returns HTTP 200 business error envelopes for handled failures. Framework binding failures remain framework-level errors.
-6. Java may automatically fall back to sudo for permission-denied file operations. The Python rewrite does not silently send stored passwords to sudo; explicit sudo file fallbacks require a separately reviewed credential policy.
-7. Existing YAML included credential locations/placeholders. No live secret was copied; operators must rotate any credential that was historically committed.
+1. `chat_stream` is newline-delimited JSON, because the former emitter serialized an event and appended `\n`; it is intentionally not `data: ...\n\n` SSE framing.
+2. Binding state was process-local. Python retains the same externally visible behavior and also keeps an explicit typed mapping. Multi-worker deployments need sticky routing.
+3. Terminal reads drain the browser buffer. Agent capture duplicates output from that same PTY into a separate drain buffer; one-shot SSH commands are not substituted.
+4. File `content` uses the effective 256 KiB implementation default even though an obsolete source comment mentioned 512 KiB.
+5. Handled failures use HTTP 200 business envelopes. FastAPI request-binding failures remain framework errors, as Spring binding errors previously remained framework errors.
+6. The previous SFTP layer automatically retried permission failures with password-fed sudo. Python never exposes a stored password to a shell. Explicit `sudo=true` and permission fallback require an interactive sudo policy; this is intentionally stricter for credential safety.
+7. The old deployment files contained plaintext credentials. They were removed, environment placeholders were introduced, and exposed credentials must be rotated.

@@ -5,10 +5,11 @@ from fastapi import APIRouter, Body, Depends, File, Query, UploadFile
 from fastapi.responses import Response as RawResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.persistence import ChatMessage, ChatSession, SshConnection, SshConnectionConfig, get_db
+from app.persistence import ChatMessage, ChatSession, SshConnection, SshConnectionConfig, SshSessionLog, get_db
 from app.schemas import *
 from app.ssh import ssh_manager
 from app.security import encrypt
+from app.agent.state import session_registry
 
 router = APIRouter(prefix="/api/v1")
 bindings: dict[str, str] = {}
@@ -102,6 +103,9 @@ async def disconnect(connectionId: str, db: AsyncSession=Depends(get_db)):
 async def terminal_open(req: TerminalOpen, db: AsyncSession=Depends(get_db)):
     try:
         _,cfg=await records(db,req.connectionId); term=await ssh_manager.open(req.connectionId,req.cols or 120,req.rows or 24,cfg.startup_command)
+        rec,_=await records(db,req.connectionId)
+        db.add(SshSessionLog(session_id=term.session_id,connection_id=req.connectionId,user_id=rec.user_id,status=0,start_time=datetime.now()))
+        await db.commit()
         await asyncio.sleep(.05); initial=ssh_manager.read(term.session_id)
         return envelope({"sessionId":term.session_id,"connectionId":req.connectionId,"initialOutput":initial})
     except Exception as e: return fail(e,"打开终端失败: ")
@@ -123,8 +127,12 @@ async def terminal_resize(req: TerminalResize):
     try: await ssh_manager.resize(req.sessionId,req.cols,req.rows); return envelope()
     except Exception as e: return envelope(code="0001",info="调整终端大小失败: "+str(e))
 @router.post("/ssh/terminal/close")
-async def terminal_close(sessionId: str):
-    try: await ssh_manager.close(sessionId); return envelope()
+async def terminal_close(sessionId: str,db:AsyncSession=Depends(get_db)):
+    try:
+        await ssh_manager.close(sessionId)
+        row=(await db.execute(select(SshSessionLog).where(SshSessionLog.session_id==sessionId))).scalar_one_or_none()
+        if row:row.status=1;row.end_time=datetime.now();await db.commit()
+        return envelope()
     except Exception as e: return envelope(code="0001",info="关闭终端会话失败: "+str(e))
 
 
@@ -219,9 +227,12 @@ async def download(connectionId:str,path:str):
 async def bind(req:Binding):
     if not req.chatSessionId:return envelope(code="0002",info="chatSessionId 不能为空")
     if not req.terminalSessionId:return envelope(code="0002",info="terminalSessionId 不能为空")
-    bindings[req.chatSessionId]=req.terminalSessionId; return envelope({"chatSessionId":req.chatSessionId,"terminalSessionId":req.terminalSessionId,"bound":True})
+    bindings[req.chatSessionId]=req.terminalSessionId
+    term=ssh_manager.terminals.get(req.terminalSessionId)
+    session_registry.bind_terminal(req.chatSessionId,req.terminalSessionId,term.connection_id if term else None)
+    return envelope({"chatSessionId":req.chatSessionId,"terminalSessionId":req.terminalSessionId,"bound":True})
 @router.post("/ssh/agent/unbind_terminal")
-async def unbind(chatSessionId:str):bindings.pop(chatSessionId,None);return envelope()
+async def unbind(chatSessionId:str):bindings.pop(chatSessionId,None);session_registry.unbind(chatSessionId);return envelope()
 @router.get("/ssh/agent/query_binding")
 async def query_binding(chatSessionId:str):
     tid=bindings.get(chatSessionId); return envelope({"chatSessionId":chatSessionId,"terminalSessionId":tid,"bound":bool(tid)},info="成功" if tid else "未绑定终端")

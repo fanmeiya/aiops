@@ -21,7 +21,8 @@ class SSHManager:
     async def connect(self, record, config) -> None:
         options = dict(host=record.host, port=record.port, username=record.username,
                        connect_timeout=(config.connect_timeout or 10), keepalive_interval=(config.keepalive_interval or 60))
-        options["known_hosts"] = None if not config.strict_host_key_check else (config.known_hosts or ())
+        if not config.strict_host_key_check: options["known_hosts"] = None
+        elif config.known_hosts: options["known_hosts"] = config.known_hosts
         if record.auth_type == 2: options["client_keys"] = [asyncssh.import_private_key(decrypt(record.private_key, record.encrypted))]
         else: options["password"] = decrypt(record.password, record.encrypted)
         self.connections[record.connection_id] = await asyncssh.connect(**options)

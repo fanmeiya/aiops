@@ -3,12 +3,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import router, bindings
 from app.agent.runtime import runtime
 from app.persistence import ChatMessage, ChatSession, get_db, init_database
 from app.schemas import ChatRequest, CreateSession, envelope
+from app.memory import ChatHistoryRepository
+from app.agent.context import HybridReducer, build_context, message_prefix
+from app.agent.intent import intent_service
+from app.agent.state import session_registry
 
 @asynccontextmanager
 async def lifespan(app):
@@ -24,7 +27,18 @@ async def agent_list():
 
 async def make_session(agent,user,db):
     if agent!='100000': return None
-    sid=str(uuid.uuid4()); db.add(ChatSession(id=sid,agent_id=agent,user_id=user,title=None,message_count=0)); await db.commit(); return sid
+    sid=str(uuid.uuid4()); now=__import__('datetime').datetime.now()
+    db.add(ChatSession(id=sid,agent_id=agent,user_id=user,title=None,message_count=0,created_at=now,updated_at=now))
+    session_registry.create(user,sid); await db.commit(); return sid
+
+async def prepare(req,sid,terminal_id,db):
+    repo=ChatHistoryRepository(db); history=await repo.messages(sid)
+    intent=await intent_service.classify(sid,req.message or '')
+    milestones=await repo.milestones(sid)
+    context=await build_context(sid,terminal_id,HybridReducer().reduce(history,8000),milestones)
+    prefix=message_prefix(context)
+    enriched=(prefix+'\n---\n' if prefix else '')+(req.message or '')
+    return repo,enriched,intent
 
 @app.post('/api/v1/create_session')
 async def create(req:CreateSession,db:AsyncSession=Depends(get_db)):
@@ -38,17 +52,30 @@ async def create_get(agentId:str,userId:str,db:AsyncSession=Depends(get_db)):
 async def chat(req:ChatRequest,db:AsyncSession=Depends(get_db)):
     sid=req.sessionId or await make_session(req.agentId,req.userId,db)
     if not sid:return envelope(code='E0001',info='智能体ID不存在')
-    text=''
-    async for event in runtime.stream(req,req.terminalSessionId or bindings.get(sid)):
+    terminal=req.terminalSessionId or bindings.get(sid); repo,enriched,intent=await prepare(req,sid,terminal,db)
+    await repo.add_message(sid,'user',req.message); await repo.detect_milestone(sid,'user',req.message); text=''
+    async for event in runtime.stream(req,terminal,enriched):
         if event['event']=='done': text=event['fullText'] or ''
-    db.add_all([ChatMessage(session_id=sid,role='user',content=req.message),ChatMessage(session_id=sid,role='assistant',content=text)])
+        elif event['event']=='tool_result':
+            await repo.add_message(sid,'tool',event['content'],'executeCommand',event['toolCallId']); await repo.detect_milestone(sid,'tool',event['content'])
+    await repo.add_message(sid,'assistant',text)
     await db.commit(); return envelope({'content':text})
 
 @app.post('/api/v1/chat_stream')
 async def chat_stream(req:ChatRequest,db:AsyncSession=Depends(get_db)):
     sid=req.sessionId or await make_session(req.agentId,req.userId,db); req.sessionId=sid
+    if not sid:
+        async def invalid(): yield json.dumps({'event':'error','content':'智能体ID不存在'},ensure_ascii=False)+'\n'
+        return StreamingResponse(invalid(),media_type='application/json')
+    terminal=req.terminalSessionId or bindings.get(sid); repo,enriched,intent=await prepare(req,sid,terminal,db)
+    await repo.add_message(sid,'user',req.message); await repo.detect_milestone(sid,'user',req.message); await db.commit()
     async def generate():
-        async for event in runtime.stream(req,req.terminalSessionId or bindings.get(sid)):
+        final=''
+        async for event in runtime.stream(req,terminal,enriched):
+            if event['event']=='tool_result':
+                await repo.add_message(sid,'tool',event['content'],'executeCommand',event['toolCallId']); await repo.detect_milestone(sid,'tool',event['content'])
+            if event['event']=='done': final=event.get('fullText') or ''
             yield json.dumps(event,ensure_ascii=False,separators=(',',':'))+'\n'
+        await repo.add_message(sid,'assistant',final); await db.commit()
     # Java ResponseBodyEmitter writes JSON plus newline, not SSE data frames.
     return StreamingResponse(generate(),media_type='application/json')

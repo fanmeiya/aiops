@@ -2,6 +2,8 @@ import json, re, uuid
 from pathlib import Path
 from typing import AsyncIterator
 from app.ssh import ssh_manager
+from app.agent.context import tool_results
+from app.agent.state import session_registry
 
 PROMPT_FILE = Path(__file__).with_name('ssh-agent.yml')
 # Preserve the complete Java prompt byte-for-byte as the initial migration source.
@@ -30,7 +32,7 @@ class AgentRuntime:
     """Claude Agent SDK adapter which retains Java counters and event vocabulary."""
     max_steps = 50; max_tool_calls = 200; max_tool_calls_per_round = 10
 
-    async def stream(self, request, terminal_id: str | None) -> AsyncIterator[dict]:
+    async def stream(self, request, terminal_id: str | None, enriched_message: str | None = None) -> AsyncIterator[dict]:
         text = ''; calls=[]; results=[]; steps=0; error=None; stop='completed'
         try:
             from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, create_sdk_mcp_server, tool
@@ -39,6 +41,7 @@ class AgentRuntime:
             async def remote_execute(args):
                 try:
                     output = await execute_command(args["command"], terminal_id or "")
+                    tool_results.push(request.sessionId, "executeCommand", output)
                     return {"content": [{"type": "text", "text": output}]}
                 except Exception as exc:
                     return {"content": [{"type": "text", "text": str(exc)}], "is_error": True}
@@ -47,9 +50,14 @@ class AgentRuntime:
             options = ClaudeAgentOptions(system_prompt=SYSTEM_PROMPT,
                                          mcp_servers={"ssh": server},
                                          allowed_tools=["mcp__ssh__executeCommand"])
+            mapping=session_registry.get(request.sessionId)
+            if mapping and mapping.claude_session_id:
+                options.resume=mapping.claude_session_id
             async with ClaudeSDKClient(options=options) as client:
-                await client.query(request.message or '')
+                await client.query(enriched_message or request.message or '')
                 async for message in client.receive_response():
+                    sdk_session_id=getattr(message,'session_id',None)
+                    if sdk_session_id: session_registry.set_claude(request.sessionId,sdk_session_id)
                     # SDK message shapes evolve; adapt content blocks without leaking SDK wire format.
                     for block in getattr(message, 'content', []) or []:
                         kind = block.__class__.__name__.lower()
