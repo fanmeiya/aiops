@@ -43,3 +43,6 @@ build/
 /walissh-server-app/.local-config
 /docs/dev-ops/log/log_error.log
 /docs/dev-ops/log/log_info.log
+
+__pycache__/
+*.py[cod]
