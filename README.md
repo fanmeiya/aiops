@@ -1,24 +1,9 @@
-# Python Server
+# walissh-server ai shell 智能终端
 
-Python 3/FastAPI drop-in backend for WaLiSSH. The runtime uses Claude Agent SDK, an in-process remote `executeCommand` MCP tool, AsyncSSH persistent PTYs/SFTP, SQLAlchemy, MySQL and Pydantic.
+环境说明；
 
-The current source tree is Python-only. Obsolete migration inventories and implementation-specific design documents are not part of the project; repository hygiene tests prevent them from being reintroduced.
+- jdk 17
+- maven 3.8.x
+- application-dev.yml、ssh-agent.yml，有两处要配置 LLM - `如果学习过 ai agent 脚手架，则可以更好的上手此项目`
 
-## Start
-
-```bash
-cp .env.example .env
-# Set WALISSH_DATABASE_URL, WALISSH_SECRET_KEY and ANTHROPIC_API_KEY
-python -m pip install -e '.[test]'
-uvicorn app.main:app --host 0.0.0.0 --port 8090
-```
-
-The service reads the existing `walissh` MySQL schema and does not rename or migrate its columns. `chat_stream` intentionally returns newline-delimited JSON objects, matching the previous server; it is not `data:`-framed SSE.
-
-## Identity and execution boundaries
-
-Application chat sessions, Claude sessions, terminal sessions, connections and users remain distinct. Agent commands can only execute through the `executeCommand` MCP tool against the bound AsyncSSH PTY. No local Bash tool is enabled.
-
-See `FEATURE_INVENTORY.md`, `IMPLEMENTATION_MAPPING.md`, `API_COMPATIBILITY_MATRIX.md`, and `COMPATIBILITY_QUIRKS.md` for the source audit and compatibility decisions.
-
-Production acceptance requirements and the distinction between automation-capable and fully certified are documented in `AUTOMATION_READINESS.md`.
+>注意，先启动服务端 walissh-server。把ssh 的操作操作，ai的操作，统一放到服务端，可以更有效的统一控制风险（企业中最为常见的做法）。如果都在客户端，可能会有人误操作执行危险命令，或者把核心服务器信息泄露。
