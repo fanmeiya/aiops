@@ -10,9 +10,10 @@
 | Context providers, reducers and prompt composition | `app/agent/context.py` |
 | Rule/DeepSeek intent classification | `app/agent/intent.py` |
 | User/chat/terminal/connection mapping | `app/agent/state.py` |
+| Enterprise document ingestion, chunking and hybrid retrieval | `app/knowledge.py` |
 | Persistent interactive SSH PTY and SFTP | `app/ssh.py` |
 | Durable chat and milestone repository | `app/memory.py` |
-| Existing MySQL table mappings | `app/persistence.py` |
+| Chat, SSH and knowledge MySQL table mappings | `app/persistence.py` |
 | AES-256-GCM credential handling | `app/security.py` |
 | Environment-driven settings | `app/config.py` |
 | Agent behavior definition and skills | `app/agent/ssh-agent.yml`, `app/agent/skills/` |

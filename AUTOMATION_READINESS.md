@@ -10,6 +10,7 @@ The service can perform automated operations when all three external systems are
 - Agent execution is serialized per chat session, bounded by 50 turns, 200 tool calls, and a 180-second event-idle timeout.
 - Destructive commands require explicit confirmation in the current user message.
 - Existing application history and milestones are restored from MySQL and injected into each graph run.
+- Enterprise documents are tenant-scoped, permission-filtered, chunked and retrieved before model inference; citations are emitted with Agent results.
 - SFTP clients are cached per connection and closed on disconnect; explicit privileged file operations use non-interactive remote sudo.
 - Streaming remains newline-delimited JSON rather than SSE framing.
 
@@ -21,5 +22,6 @@ Before production cutover, run the compatibility suite with dependencies install
 2. A disposable SSH host supporting password and private-key authentication, PTY resize, SFTP, and passwordless sudo.
 3. A real DeepSeek session which diagnoses a fault, performs multiple remote tool calls, resumes the conversation, and emits all compatibility events.
 4. The existing frontend consuming `/api/v1/chat_stream` without modifications.
+5. The configured embedding provider and a tenant/role identity supplied by a trusted authentication gateway.
 
 Until these gates pass, the implementation is automation-capable but not production-certified.

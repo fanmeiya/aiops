@@ -11,6 +11,7 @@ from app.agent.context import tool_results
 from app.agent.model import deepseek_client
 from app.agent.permissions import check_permission
 from app.config import settings
+from app.knowledge import knowledge_service
 from app.ssh import ssh_manager
 
 PROMPT_FILE = Path(__file__).with_name("ssh-agent.yml")
@@ -35,6 +36,12 @@ class GraphState(TypedDict):
     session_id: str
     terminal_id: str
     user_message: str
+    tenant_id: str
+    user_id: str
+    roles: list[str]
+    service: str | None
+    environment: str | None
+    citations: list[dict]
     steps: int
     tool_count: int
     calls: list[dict]
@@ -61,12 +68,38 @@ class AgentRuntime:
         self.max_tool_calls = settings.agent_max_tool_calls
         self._session_locks: dict[str, asyncio.Lock] = {}
         graph = StateGraph(GraphState)
+        graph.add_node("retrieve", self._retrieve)
         graph.add_node("model", self._model)
         graph.add_node("tools", self._tools)
-        graph.add_edge(START, "model")
+        graph.add_edge(START, "retrieve")
+        graph.add_edge("retrieve", "model")
         graph.add_conditional_edges("model", self._route, {"tools": "tools", "end": END})
         graph.add_edge("tools", "model")
         self.graph = graph.compile()
+
+    async def _retrieve(self, state: GraphState) -> dict:
+        try:
+            results = await knowledge_service.search(
+                tenant_id=state["tenant_id"], query=state["user_message"], roles=state["roles"],
+                service=state.get("service"), environment=state.get("environment"),
+                user_id=state["user_id"], session_id=state["session_id"],
+            )
+        except Exception as exc:
+            return {"citations": [], "events": [self._event(
+                "knowledge_error", content=str(exc), status="error"
+            )]}
+        if not results:
+            return {"citations": [], "events": []}
+        messages = list(state["messages"])
+        messages[0] = {**messages[0], "content": (
+            f"{messages[0].get('content', '')}\n---\n{knowledge_service.render_context(results)}"
+        )}
+        citations = [{key: item.get(key) for key in
+                      ("documentId", "title", "section", "sourceUri", "version", "score")}
+                     for item in results]
+        return {"messages": messages, "citations": citations,
+                "events": [self._event("knowledge", content=json.dumps(citations, ensure_ascii=False),
+                                       status="success")]}
 
     async def _model(self, state: GraphState) -> dict:
         if state["steps"] >= self.max_steps:
@@ -144,6 +177,12 @@ class AgentRuntime:
                 "session_id": request.sessionId,
                 "terminal_id": terminal_id or "",
                 "user_message": request.message or "",
+                "tenant_id": request.tenantId or "default",
+                "user_id": request.userId or "default",
+                "roles": request.roles or [],
+                "service": request.service,
+                "environment": request.environment,
+                "citations": [],
                 "steps": 0, "tool_count": 0, "calls": [], "results": [], "events": [],
                 "stop_reason": "", "error": None,
             }
@@ -169,6 +208,7 @@ class AgentRuntime:
                       "totalToolCalls": len(final.get("calls", [])), "maxStepsReached": stop == "max_steps",
                       "userStopped": False, "idleTimeout": stop == "idle_timeout", "stopReason": stop,
                       "toolCalls": final.get("calls", []), "toolResults": final.get("results", []),
+                      "citations": final.get("citations", []),
                       "error": final.get("error")}
             yield self._event("done", content=json.dumps(result, ensure_ascii=False),
                               status="error" if final.get("error") else "success", fullText=text)

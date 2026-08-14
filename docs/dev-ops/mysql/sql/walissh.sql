@@ -177,6 +177,64 @@ CREATE TABLE `ssh_session_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='SSH会话记录表';
 
 
+# 企业私有知识库
+# ------------------------------------------------------------
+
+DROP TABLE IF EXISTS `knowledge_query_log`;
+DROP TABLE IF EXISTS `knowledge_chunk`;
+DROP TABLE IF EXISTS `knowledge_document`;
+
+CREATE TABLE `knowledge_document` (
+  `id` varchar(64) NOT NULL,
+  `tenant_id` varchar(64) NOT NULL DEFAULT 'default',
+  `title` varchar(255) NOT NULL,
+  `source_type` varchar(32) NOT NULL DEFAULT 'manual',
+  `source_uri` varchar(512) DEFAULT NULL,
+  `document_type` varchar(64) NOT NULL DEFAULT 'operations',
+  `service` varchar(128) DEFAULT NULL,
+  `environment` varchar(64) DEFAULT NULL,
+  `version` varchar(64) DEFAULT NULL,
+  `permission_scope` text NOT NULL,
+  `checksum` varchar(64) NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_knowledge_document_tenant` (`tenant_id`,`status`),
+  UNIQUE KEY `uk_knowledge_checksum` (`tenant_id`,`checksum`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='企业运维知识文档';
+
+CREATE TABLE `knowledge_chunk` (
+  `id` varchar(64) NOT NULL,
+  `document_id` varchar(64) NOT NULL,
+  `tenant_id` varchar(64) NOT NULL,
+  `chunk_index` int NOT NULL,
+  `section` varchar(255) DEFAULT NULL,
+  `content` longtext NOT NULL,
+  `token_count` int NOT NULL DEFAULT 0,
+  `embedding` longtext DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_knowledge_chunk_document` (`document_id`,`chunk_index`),
+  KEY `idx_knowledge_chunk_tenant` (`tenant_id`),
+  CONSTRAINT `fk_knowledge_chunk_document` FOREIGN KEY (`document_id`) REFERENCES `knowledge_document` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='企业运维知识分块与向量';
+
+CREATE TABLE `knowledge_query_log` (
+  `id` varchar(64) NOT NULL,
+  `tenant_id` varchar(64) NOT NULL,
+  `user_id` varchar(64) DEFAULT NULL,
+  `session_id` varchar(64) DEFAULT NULL,
+  `query` text NOT NULL,
+  `filters` text NOT NULL,
+  `retrieved_chunk_ids` text NOT NULL,
+  `latency_ms` double NOT NULL DEFAULT 0,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_knowledge_query_tenant` (`tenant_id`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='企业知识检索审计日志';
+
+
 
 
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;

@@ -20,6 +20,8 @@ WaLiSSH 是一个完全使用 Python 构建的远程智能运维后端。服务�
 
 - Agent 配置查询、会话创建、同步聊天和 NDJSON 流式聊天
 - DeepSeek 工具调用与受限 ReAct 循环
+- 企业私有运维知识库、文档分块、可选 Embedding 和混合检索
+- 按企业、用户角色、服务和环境过滤知识，并返回可追溯引用
 - SSH 连接配置的创建、查询、更新、删除、连接和断开
 - 持久交互式 PTY 的打开、读写、命令执行、缩放和关闭
 - SFTP 目录浏览、分块读取、创建、重命名、删除、保存、上传和下载
@@ -40,6 +42,7 @@ app/
 ├── memory.py               # 聊天历史与里程碑
 ├── security.py             # 凭据加密
 ├── ssh.py                  # AsyncSSH 连接、PTY 和 SFTP 管理
+├── knowledge.py            # 企业知识入库、切分、混合检索与引用
 └── agent/
     ├── model.py            # DeepSeek 客户端
     ├── runtime.py          # LangGraph Agent 工作流
@@ -65,6 +68,10 @@ WALISSH_DATABASE_URL=mysql+aiomysql://user:password@127.0.0.1:3306/walissh
 WALISSH_DEEPSEEK_API_KEY=your-api-key
 WALISSH_DEEPSEEK_BASE_URL=https://api.deepseek.com
 WALISSH_DEEPSEEK_MODEL=deepseek-chat
+WALISSH_EMBEDDING_API_KEY=your-embedding-api-key
+WALISSH_EMBEDDING_BASE_URL=https://your-embedding-provider.example/v1
+WALISSH_EMBEDDING_MODEL=your-embedding-model
+WALISSH_KNOWLEDGE_TOP_K=6
 WALISSH_SECRET_KEY=replace-with-a-long-random-secret
 ```
 
@@ -84,8 +91,31 @@ uvicorn app.main:app --host 0.0.0.0 --port 8090
 - 创建会话：`POST /api/v1/create_session`
 - 同步聊天：`POST /api/v1/chat`
 - 流式聊天：`POST /api/v1/chat_stream`
+- 知识入库：`POST /api/v1/knowledge/documents`
+- 知识列表：`GET /api/v1/knowledge/documents`
+- 知识删除：`DELETE /api/v1/knowledge/documents/{document_id}`
+- 知识检索：`POST /api/v1/knowledge/search`
 
 `chat_stream` 返回每行一个 JSON 对象的 NDJSON，不使用 `data:` SSE 帧。
+
+## 企业私有知识 RAG
+
+知识文档通过 `tenantId` 隔离，并可使用 `permissionScope`、`service` 和 `environment` 约束检索范围。入库流程优先按 Markdown 标题切分长文档，再按窗口大小与重叠区域生成 Chunk。配置 Embedding 服务后使用语义向量与关键词混合排序；未配置时自动退化为关键词检索，方便本地开发。
+
+聊天请求可携带以下范围信息：
+
+```json
+{
+  "tenantId": "company-a",
+  "roles": ["ops"],
+  "service": "order-api",
+  "environment": "production"
+}
+```
+
+LangGraph 在模型节点前执行企业知识检索，将来源标题、章节、版本和 URI 作为引用写入 `knowledge` 流事件及最终 `done` 结果。检索内容会被明确标记为不可信参考资料，文档中的命令仍须通过工具权限策略。
+
+第一版向量以 JSON 形式保存在 MySQL，适用于小型企业知识规模；当知识规模扩大时，可以在不改变 Agent Graph 的情况下替换检索仓库。请求中的租户与角色字段应由生产环境的认证网关注入，不能直接信任客户端自报身份。
 
 ## Docker
 

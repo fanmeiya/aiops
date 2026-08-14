@@ -10,6 +10,12 @@ class Settings(BaseSettings):
     deepseek_model: str = "deepseek-chat"
     deepseek_timeout_seconds: float = 120
     deepseek_max_retries: int = 3
+    embedding_api_key: SecretStr = SecretStr("")
+    embedding_base_url: str = ""
+    embedding_model: str = ""
+    knowledge_chunk_size: int = 800
+    knowledge_chunk_overlap: int = 100
+    knowledge_top_k: int = 6
     agent_max_steps: int = 50
     agent_max_tool_calls: int = 200
     secret_key: str = ""

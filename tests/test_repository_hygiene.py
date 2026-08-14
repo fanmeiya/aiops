@@ -24,6 +24,8 @@ def test_model_runtime_is_langgraph_and_deepseek():
     assert "langchain" not in dependencies
     assert "stategraph" in runtime
     assert "deepseek_client" in runtime
+    assert 'add_node("retrieve"' in runtime
+    assert "knowledge_service.search" in runtime
 
 
 def test_readme_contains_only_python_runtime_documentation():
