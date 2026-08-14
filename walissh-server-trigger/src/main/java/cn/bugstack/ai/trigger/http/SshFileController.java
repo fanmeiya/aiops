@@ -11,6 +11,8 @@ import cn.bugstack.ai.domain.ssh.model.entity.SshFileTreeEntity;
 import cn.bugstack.ai.domain.ssh.service.ISshFileDomainService;
 import cn.bugstack.ai.types.enums.ResponseCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ContentDisposition;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,7 +25,6 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
@@ -196,8 +197,12 @@ public class SshFileController implements ISshFileService {
                          HttpServletResponse response) {
         try {
             String fileName = path.substring(path.lastIndexOf('/') + 1);
+            String safeFileName = fileName.replaceAll("[\\r\\n\"]", "_");
             response.setContentType("application/octet-stream");
-            response.setHeader("Content-Disposition", "attachment; filename=" + URLEncoder.encode(fileName, "UTF-8"));
+            ContentDisposition disposition = ContentDisposition.attachment()
+                    .filename(safeFileName, StandardCharsets.UTF_8)
+                    .build();
+            response.setHeader(HttpHeaders.CONTENT_DISPOSITION, disposition.toString());
             try (OutputStream outputStream = response.getOutputStream()) {
                 sshFileDomainService.downloadFile(connectionId, path, outputStream);
             }
