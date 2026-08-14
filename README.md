@@ -17,6 +17,6 @@ The service reads the existing `walissh` MySQL schema and does not rename or mig
 
 Application chat sessions, Claude sessions, terminal sessions, connections and users remain distinct. Agent commands can only execute through the `executeCommand` MCP tool against the bound AsyncSSH PTY. No local Bash tool is enabled.
 
-See `JAVA_FEATURE_INVENTORY.md`, `JAVA_TO_PYTHON_MAPPING.md`, `API_COMPATIBILITY_MATRIX.md`, and `COMPATIBILITY_QUIRKS.md` for the source audit and compatibility decisions.
+See `FEATURE_INVENTORY.md`, `IMPLEMENTATION_MAPPING.md`, `API_COMPATIBILITY_MATRIX.md`, and `COMPATIBILITY_QUIRKS.md` for the source audit and compatibility decisions.
 
 Production acceptance requirements and the distinction between automation-capable and fully certified are documented in `AUTOMATION_READINESS.md`.

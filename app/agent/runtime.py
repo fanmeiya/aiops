@@ -8,7 +8,7 @@ from app.agent.permissions import check_permission
 from app.config import settings
 
 PROMPT_FILE = Path(__file__).with_name('ssh-agent.yml')
-# Preserve the complete Java prompt byte-for-byte as the initial migration source.
+# Load the complete SSH operations policy as the system prompt.
 SYSTEM_PROMPT = PROMPT_FILE.read_text(encoding='utf-8').split('instruction: |', 1)[1]
 
 async def execute_command(command: str, terminal_session_id: str, user_message: str = "") -> str:
@@ -19,7 +19,7 @@ async def execute_command(command: str, terminal_session_id: str, user_message: 
 
 
 class AgentRuntime:
-    """Claude Agent SDK adapter which retains Java counters and event vocabulary."""
+    """Claude Agent SDK adapter for the public ReAct counters and event vocabulary."""
     max_steps = 50; max_tool_calls = 200; max_tool_calls_per_round = 10
 
     def __init__(self):
@@ -90,7 +90,7 @@ class AgentRuntime:
                             status='error' if getattr(block,'is_error',False) else 'success'
                             results.append({'toolCallId':tool_id,'content':output,'status':status})
                             yield {'event':'tool_result','content':output,'toolCallId':tool_id,'toolName':None,'status':status,'fullText':None,'stepInfo':None}
-                    # Only assistant messages represent Java-compatible reasoning rounds.
+                    # Only assistant messages represent application reasoning rounds.
                     if message.__class__.__name__.lower().startswith('assistant'):
                         steps += 1
                         # Its tool calls execute after this SDK message is consumed.

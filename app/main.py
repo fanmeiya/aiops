@@ -86,5 +86,5 @@ async def chat_stream(req:ChatRequest,db:AsyncSession=Depends(get_db)):
         finally:
             if final: await repo.add_message(sid,'assistant',final)
             await db.commit()
-    # Java ResponseBodyEmitter writes JSON plus newline, not SSE data frames.
+    # The public stream protocol is JSON plus newline, not SSE data frames.
     return StreamingResponse(generate(),media_type='application/json')

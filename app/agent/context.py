@@ -33,7 +33,7 @@ class HybridReducer:
         return [m for i,m in enumerate(messages) if i in keep]
     @staticmethod
     def _indices(subset,all_messages):
-        # Java List.indexOf behavior is intentionally retained for equal maps.
+        # Preserve first-equal-message index behavior.
         return {all_messages.index(message) for message in subset}
 
 

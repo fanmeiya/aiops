@@ -15,7 +15,7 @@ class Terminal:
 
     def append_output(self, text: str) -> None:
         self.output.append(text)
-        # Match the Java drain buffer semantics while bounding a stalled client.
+        # Preserve drain-buffer behavior while bounding a stalled client.
         if sum(map(len, self.output)) > 2 * 1024 * 1024:
             self.output[:] = ["".join(self.output)[-1024 * 1024:]]
         if self.capture:

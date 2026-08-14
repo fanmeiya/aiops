@@ -2,7 +2,7 @@
 
 The Python implementation exposes every route from the source controllers. “Implemented” means code exists; “unit” identifies locally automated contract coverage, while SSH/MySQL/Claude integration still requires configured external services.
 
-| Java route | Method | Python implementation | Automated coverage |
+| Compatible route | Method | Python implementation | Automated coverage |
 |---|---|---|---|
 | `/api/v1/query_ai_agent_config_list` | GET | Implemented | unit |
 | `/api/v1/create_session` | GET, POST | Implemented | unit |
