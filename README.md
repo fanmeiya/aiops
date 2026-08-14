@@ -2,6 +2,8 @@
 
 Python 3/FastAPI drop-in backend for WaLiSSH. The runtime uses Claude Agent SDK, an in-process remote `executeCommand` MCP tool, AsyncSSH persistent PTYs/SFTP, SQLAlchemy, MySQL and Pydantic.
 
+The current source tree is Python-only. Obsolete migration inventories and implementation-specific design documents are not part of the project; repository hygiene tests prevent them from being reintroduced.
+
 ## Start
 
 ```bash
