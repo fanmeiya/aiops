@@ -1,10 +1,17 @@
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="WALISSH_", env_file=".env", extra="ignore")
     database_url: str = "sqlite+aiosqlite:///./walissh.db"
-    agent_model: str = "claude-sonnet-4-5"
+    deepseek_api_key: SecretStr = SecretStr("")
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-chat"
+    deepseek_timeout_seconds: float = 120
+    deepseek_max_retries: int = 3
+    agent_max_steps: int = 50
+    agent_max_tool_calls: int = 200
     secret_key: str = ""
     cors_origins: str = "*"
 

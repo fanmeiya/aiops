@@ -1,6 +1,6 @@
 # API Compatibility Matrix
 
-The Python implementation exposes every route from the source controllers. “Implemented” means code exists; “unit” identifies locally automated contract coverage, while SSH/MySQL/Claude integration still requires configured external services.
+The Python implementation exposes every route from the source controllers. “Implemented” means code exists; “unit” identifies locally automated contract coverage, while SSH/MySQL/DeepSeek integration still requires configured external services.
 
 | Compatible route | Method | Python implementation | Automated coverage |
 |---|---|---|---|

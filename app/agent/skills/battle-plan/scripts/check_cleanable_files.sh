@@ -68,8 +68,6 @@ fi
 # 7. 语言环境缓存/依赖
 check_dir_size "Yarn 缓存" "$HOME/Library/Caches/Yarn" "Yarn 包管理器缓存。"
 check_dir_size "npm 缓存" "$HOME/.npm" "npm 包管理器缓存。"
-check_dir_size "Maven 缓存" "$HOME/.m2/repository" "Maven 仓库，虽然不是垃圾，但如果很久不用，可能占用大量空间。"
-check_dir_size "Gradle 缓存" "$HOME/.gradle/caches" "Gradle 构建缓存。"
 check_dir_size "CocoaPods 缓存" "$HOME/Library/Caches/CocoaPods" "CocoaPods 依赖缓存。"
 
 # 8. Docker (如果运行)

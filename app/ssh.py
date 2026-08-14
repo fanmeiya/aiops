@@ -46,6 +46,10 @@ class SSHManager:
         if client: client.exit()
         if conn: conn.close(); await conn.wait_closed()
 
+    async def close_all(self) -> None:
+        for connection_id in list(self.connections):
+            await self.disconnect(connection_id)
+
     async def open(self, connection_id: str, cols=120, rows=24, startup_command=None) -> Terminal:
         conn = self.connections.get(connection_id)
         if not conn or conn.is_closed(): raise ValueError("SSH连接未建立，请先连接")
@@ -75,7 +79,9 @@ class SSHManager:
         term = self.terminals.pop(sid, None)
         if term:
             term.process.stdin.write_eof(); term.process.terminate()
-            if term.reader: term.reader.cancel()
+            if term.reader:
+                term.reader.cancel()
+                await asyncio.gather(term.reader, return_exceptions=True)
 
     async def execute(self, sid, command, timeout=60):
         term = self.require(sid)

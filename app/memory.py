@@ -1,4 +1,4 @@
-"""Durable application memory; deliberately independent from Claude sessions."""
+"""Durable application memory, independent from in-process graph execution."""
 from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
