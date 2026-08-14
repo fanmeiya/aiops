@@ -13,10 +13,15 @@ from app.agent.context import HybridReducer, build_context, conversation_history
 from app.agent.intent import intent_service
 from app.agent.state import session_registry
 from app.config import settings
+from app.ssh import ssh_manager
 
 @asynccontextmanager
 async def lifespan(app):
-    await init_database(); yield
+    await init_database()
+    try:
+        yield
+    finally:
+        await ssh_manager.close_all()
 
 app=FastAPI(title='WaLiSSH Server', lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=settings.cors_origin_list,allow_methods=['*'],allow_headers=['*'],allow_credentials=False)
@@ -39,8 +44,7 @@ async def prepare(req,sid,terminal_id,db):
     trimmed=HybridReducer().reduce(history,8000)
     context=await build_context(sid,terminal_id,trimmed,milestones)
     prefix=message_prefix(context)
-    mapping=session_registry.get(sid)
-    restored_history="" if mapping and mapping.claude_session_id else conversation_history(trimmed)
+    restored_history=conversation_history(trimmed)
     parts=[part for part in (restored_history,prefix,req.message or '') if part]
     enriched='\n---\n'.join(parts)
     return repo,enriched,intent

@@ -1,6 +1,6 @@
 # Python Server
 
-Python 3/FastAPI drop-in backend for WaLiSSH. The runtime uses Claude Agent SDK, an in-process remote `executeCommand` MCP tool, AsyncSSH persistent PTYs/SFTP, SQLAlchemy, MySQL and Pydantic.
+Python 3/FastAPI backend for WaLiSSH. The runtime uses LangGraph, the DeepSeek API, an in-process remote `executeCommand` tool, AsyncSSH persistent PTYs/SFTP, SQLAlchemy, MySQL and Pydantic.
 
 The current source tree is Python-only. Obsolete migration inventories and implementation-specific design documents are not part of the project; repository hygiene tests prevent them from being reintroduced.
 
@@ -8,7 +8,7 @@ The current source tree is Python-only. Obsolete migration inventories and imple
 
 ```bash
 cp .env.example .env
-# Set WALISSH_DATABASE_URL, WALISSH_SECRET_KEY and ANTHROPIC_API_KEY
+# Set WALISSH_DATABASE_URL, WALISSH_SECRET_KEY and WALISSH_DEEPSEEK_API_KEY
 python -m pip install -e '.[test]'
 uvicorn app.main:app --host 0.0.0.0 --port 8090
 ```
@@ -17,7 +17,7 @@ The service reads the existing `walissh` MySQL schema and does not rename or mig
 
 ## Identity and execution boundaries
 
-Application chat sessions, Claude sessions, terminal sessions, connections and users remain distinct. Agent commands can only execute through the `executeCommand` MCP tool against the bound AsyncSSH PTY. No local Bash tool is enabled.
+Application chat sessions, terminal sessions, connections and users remain distinct. Agent commands can only execute through `executeCommand` against the bound AsyncSSH PTY. No local command tool is enabled.
 
 See `FEATURE_INVENTORY.md`, `IMPLEMENTATION_MAPPING.md`, `API_COMPATIBILITY_MATRIX.md`, and `COMPATIBILITY_QUIRKS.md` for the source audit and compatibility decisions.
 
