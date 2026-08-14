@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, Text, Index, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, Index, UniqueConstraint, func
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from app.config import settings
@@ -70,6 +70,55 @@ class SshSessionLog(Base):
     start_time: Mapped[datetime | None] = mapped_column(DateTime, server_default=func.now())
     end_time: Mapped[datetime | None] = mapped_column(DateTime)
     error_msg: Mapped[str | None] = mapped_column(String(512))
+
+
+class KnowledgeDocument(Base):
+    __tablename__ = "knowledge_document"
+    __table_args__ = (
+        Index("idx_knowledge_document_tenant", "tenant_id", "status"),
+        UniqueConstraint("tenant_id", "checksum", name="uk_knowledge_checksum"),
+    )
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, default="default")
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
+    source_uri: Mapped[str | None] = mapped_column(String(512))
+    document_type: Mapped[str] = mapped_column(String(64), nullable=False, default="operations")
+    service: Mapped[str | None] = mapped_column(String(128))
+    environment: Mapped[str | None] = mapped_column(String(64))
+    version: Mapped[str | None] = mapped_column(String(64))
+    permission_scope: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    checksum: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class KnowledgeChunk(Base):
+    __tablename__ = "knowledge_chunk"
+    __table_args__ = (Index("idx_knowledge_chunk_document", "document_id", "chunk_index"),)
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey("knowledge_document.id", ondelete="CASCADE"), nullable=False)
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    section: Mapped[str | None] = mapped_column(String(255))
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    token_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    embedding: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, server_default=func.now())
+
+
+class KnowledgeQueryLog(Base):
+    __tablename__ = "knowledge_query_log"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    user_id: Mapped[str | None] = mapped_column(String(64))
+    session_id: Mapped[str | None] = mapped_column(String(64))
+    query: Mapped[str] = mapped_column(Text, nullable=False)
+    filters: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    retrieved_chunk_ids: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    latency_ms: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, server_default=func.now())
 
 
 engine = create_async_engine(settings.database_url, pool_pre_ping=True)

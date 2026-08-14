@@ -1,6 +1,8 @@
 import json, re, time
 from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass
+from app.agent.model import deepseek_client
+from app.config import settings
 
 RULES = {
 "DIAGNOSE":(["挂了","宕机","down","502","503","504","oom","满","过高","异常","报错","告警","超时","timeout","crash","panic","fatal"],[r"为什么.*(?:挂|报错|失败|不通)",r"排查.*问题",r"分析.*原因"]),
@@ -24,7 +26,7 @@ class IntentService:
             if any(x["intent"]==intent for x in self.history[sid]):score+=.1
             if min(score,1)>best["confidence"]:
                 entities={};
-                for service in ("nginx","redis","mysql","postgres","docker","kafka","rabbitmq","elasticsearch","tomcat","spring"):
+                for service in ("nginx","redis","mysql","postgres","docker","kafka","rabbitmq","elasticsearch"):
                     if service in lower:entities["service"]=service
                 best={"intent":intent,"confidence":min(score,1),"entities":entities}
         self.history[sid].append(best);self.cache[key]=(now+300,best)
@@ -35,12 +37,15 @@ class IntentService:
         rule=self.rule_classify(sid,message)
         if rule["confidence"]>=.8:return rule
         try:
-            from claude_agent_sdk import ClaudeAgentOptions, query
             prompt=("只返回JSON，不要markdown。字段为intent、confidence、entities。intent只能是 "
                     +", ".join([*RULES,"UNKNOWN"])+"。用户消息："+message)
-            text=""
-            async for response in query(prompt=prompt,options=ClaudeAgentOptions(max_turns=1,allowed_tools=[])):
-                for block in getattr(response,"content",[]) or []: text+=getattr(block,"text","")
+            response = await deepseek_client().chat.completions.create(
+                model=settings.deepseek_model,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0,
+            )
+            text = response.choices[0].message.content or "{}"
             parsed=json.loads(text[text.find("{"):text.rfind("}")+1])
             llm={"intent":str(parsed.get("intent","UNKNOWN")).upper(),"confidence":float(parsed.get("confidence",0)),"entities":parsed.get("entities") or {}}
             result=llm if llm["confidence"]>=.5 else rule

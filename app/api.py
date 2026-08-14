@@ -10,9 +10,50 @@ from app.schemas import *
 from app.ssh import ssh_manager
 from app.security import encrypt
 from app.agent.state import session_registry
+from app.knowledge import knowledge_service
 
 router = APIRouter(prefix="/api/v1")
 bindings: dict[str, str] = {}
+
+
+@router.post("/knowledge/documents")
+async def create_knowledge_document(req: KnowledgeDocumentRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        return envelope(await knowledge_service.create_document(db, req), info="知识文档已入库")
+    except Exception as exc:
+        await db.rollback()
+        return fail(exc, "知识文档入库失败: ")
+
+
+@router.get("/knowledge/documents")
+async def list_knowledge_documents(tenantId: str = "default", db: AsyncSession = Depends(get_db)):
+    try:
+        return envelope(await knowledge_service.list_documents(db, tenantId))
+    except Exception as exc:
+        return fail(exc, "查询知识文档失败: ")
+
+
+@router.delete("/knowledge/documents/{document_id}")
+async def delete_knowledge_document(document_id: str, tenantId: str = "default",
+                                    db: AsyncSession = Depends(get_db)):
+    try:
+        await knowledge_service.delete_document(db, tenantId, document_id)
+        return envelope(info="知识文档已删除")
+    except Exception as exc:
+        await db.rollback()
+        return fail(exc, "删除知识文档失败: ")
+
+
+@router.post("/knowledge/search")
+async def search_knowledge(req: KnowledgeSearchRequest):
+    try:
+        results = await knowledge_service.search(
+            tenant_id=req.tenantId, query=req.query, roles=req.roles,
+            service=req.service, environment=req.environment, top_k=req.topK,
+        )
+        return envelope(results)
+    except Exception as exc:
+        return fail(exc, "检索企业知识失败: ")
 
 
 def fail(exc, prefix=""):

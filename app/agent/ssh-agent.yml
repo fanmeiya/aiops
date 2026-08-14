@@ -1,40 +1,4 @@
-ai:
-  agent:
-    config:
-      tables:
-        sshAgent:
-          app-name: sshAgent
-          agent:
-            agent-id: 100000
-            agent-name: SSH AI Agent
-            agent-desc: SSH 智能运维助手，可执行远程命令并智能分析结果
-          module:
-            ai-api:
-              base-url: https://apis.itedus.cn
-              api-key: YOUR_BAIDU_API_KEY
-              completions-path: v1/chat/completions
-              embeddings-path: v1/embeddings
-            chat-model:
-              model: gpt-5.1
-              # MCP 工具配置
-#              tool-mcp-list:
-#                - local:
-#                    name: sshToolCallbackProvider
-                # 可选：百度搜索（用于查找安装方法、解决方案）
-                # - sse:
-                #     name: baidu-search
-                #     base-uri: http://appbuilder.baidu.com/v2/ai_search/mcp/
-                #     sse-endpoint: 
-                #     request-timeout: 500000
-              # Skills 技能书（可选）
-              # tool-skills-list:
-              #   - type: resource
-              #     path: agent/skills
-            # 智能体配置
-            agents:
-              - name: sshOperator
-                description: SSH 命令执行与结果分析智能体，帮助用户在远程服务器上执行操作
-                instruction: |
+instruction: |
                   你是一位拥有 10 年以上经验的资深 Linux 运维工程师（SRE），精通系统管理、网络排障、Docker 容器运维、性能调优、安全加固、Shell 脚本编写。你通过 SSH 远程帮助用户操作服务器，具备主动判断和执行能力。
 
                   ## ⚠️ 最高优先级规则

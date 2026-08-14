@@ -2,41 +2,44 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OBSOLETE_FILES = {
-    "JAVA_FEATURE_INVENTORY.md",
-    "JAVA_TO_PYTHON_MAPPING.md",
-    "docs/intent-recognition-enhancement-design.md",
-    ".walicode/output.json",
+PYTHON_PROJECT_ROOTS = {"app", "tests", "docs"}
+ALLOWED_ROOT_FILES = {
+    ".env.example", ".gitignore", "API_COMPATIBILITY_MATRIX.md",
+    "AUTOMATION_READINESS.md", "COMPATIBILITY_QUIRKS.md", "Dockerfile",
+    "FEATURE_INVENTORY.md", "IMPLEMENTATION_MAPPING.md", "README.md",
+    "pyproject.toml",
 }
-OBSOLETE_MARKERS = (
-    "Spring Boot",
-    "Spring AI",
-    "Google ADK",
-    "MyBatis",
-    "JSch",
-    "walissh-server-domain/src/main/java",
-)
 
 
-def test_obsolete_migration_files_are_absent():
-    tracked_paths = {
-        path.relative_to(ROOT).as_posix()
-        for path in ROOT.rglob("*")
-        if path.is_file() and ".git" not in path.parts
-    }
-    assert tracked_paths.isdisjoint(OBSOLETE_FILES)
+def test_repository_has_only_python_project_roots():
+    entries = {path.name for path in ROOT.iterdir() if path.name not in {".git", ".pytest_cache"}}
+    assert entries <= PYTHON_PROJECT_ROOTS | ALLOWED_ROOT_FILES
 
 
-def test_current_project_docs_only_describe_python_runtime():
-    docs = [
-        ROOT / "README.md",
-        ROOT / "FEATURE_INVENTORY.md",
-        ROOT / "IMPLEMENTATION_MAPPING.md",
-        ROOT / "API_COMPATIBILITY_MATRIX.md",
-        ROOT / "AUTOMATION_READINESS.md",
-        ROOT / "COMPATIBILITY_QUIRKS.md",
-        ROOT / "docs/intent-recognition-design.md",
-    ]
-    content = "\n".join(path.read_text(encoding="utf-8") for path in docs)
-    for marker in OBSOLETE_MARKERS:
-        assert marker not in content
+def test_model_runtime_is_langgraph_and_deepseek():
+    dependencies = (ROOT / "pyproject.toml").read_text(encoding="utf-8").lower()
+    runtime = (ROOT / "app/agent/runtime.py").read_text(encoding="utf-8").lower()
+    assert '"langgraph' in dependencies
+    assert '"openai' in dependencies
+    assert "langchain" not in dependencies
+    assert "stategraph" in runtime
+    assert "deepseek_client" in runtime
+    assert 'add_node("retrieve"' in runtime
+    assert "knowledge_service.search" in runtime
+
+
+def test_readme_contains_only_python_runtime_documentation():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8").lower()
+    obsolete_markers = (
+        "ja" + "va",
+        "jd" + "k",
+        "ma" + "ven",
+        "spring" + " boot",
+        "my" + "batis",
+        "j" + "sch",
+        "google" + " adk",
+    )
+    assert "完全使用 python 构建" in readme
+    assert "langgraph" in readme
+    assert "deepseek" in readme
+    assert not any(marker in readme for marker in obsolete_markers)
