@@ -1,3 +1,7 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
@@ -14,6 +18,7 @@
 .factorypath
 .project
 .settings
+.springBeans
 .sts4-cache
 
 ### NetBeans ###
@@ -32,14 +37,9 @@ build/
 ### Mac OS ###
 .DS_Store
 /.idea/
+/.mvn/
 /data/
+/walissh-server-app/data/
+/walissh-server-app/.local-config
 /docs/dev-ops/log/log_error.log
 /docs/dev-ops/log/log_info.log
-
-__pycache__/
-*.py[cod]
-.env
-.venv/
-.pytest_cache/
-*.egg-info/
-walissh.db
