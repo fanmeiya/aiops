@@ -1,4 +1,4 @@
-# WaLiSSH Python Server
+# Python Server
 
 Python 3/FastAPI drop-in backend for WaLiSSH. The runtime uses Claude Agent SDK, an in-process remote `executeCommand` MCP tool, AsyncSSH persistent PTYs/SFTP, SQLAlchemy, MySQL and Pydantic.
 
